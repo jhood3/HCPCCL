@@ -3,14 +3,13 @@ library(lme4)
 library(PRROC)
 library(umap)
 library(randomForest)
-#setwd("/Users/johnhood/Research/Schein/Allocation/AllocaDA/FARMM")
-setwd("/Users/johnhood/Research/Schein/Allocation/FARMM")
-Cs <- seq(3, 23, by=4)
+setwd("/Users/johnhood/Research/Schein/HCPCCL/results/thresholding")
+Cs <- rep(15,2)#seq(3, 23, by=4)
 c <- 15
 d <- 3
 k <- 3
-nums = 0:4
-seeds = 380:389
+nums = rep(0, 2)#:4
+seeds = rep(123, 2)#380:389
 prs <- matrix(0, length(seeds), length(nums)) 
 prs <- array(0, c(length(seeds), length(Cs), length(nums)))
 for (s in 1:length(seeds)){
@@ -61,11 +60,12 @@ points(Cs, mean_prs[,m], pch=16, col=m)
 #lower quantile
 #iqr_prs <- apply(prs, 2, IQR)
 #upper quantile
-iqr_prs <- apply(prs, 2, IQR)
-lines(Cs, mean_prs + iqr_prs/2, lty=2, col='blue')
-lines(Cs, mean_prs - iqr_prs/2, lty=2, col='blue')
+#iqr_prs <- apply(prs, 2, IQR)
+#lines(Cs, mean_prs + iqr_prs/2, lty=2, col='blue')
+#lines(Cs, mean_prs - iqr_prs/2, lty=2, col='blue')
 
-T0 <- read.table(paste0("T0_C", c, "_D", d, "_K", k, ".csv"), sep = ",")
+#T0 <- read.table(paste0("T0_C", c, "_D", d, "_K", k, ".csv"), sep = ",")
+T0 <- read.table(paste0("T0_C", c, "_D", d, "_K", k, "_123.csv"), sep = ",")
 par(mfrow=c(1,1))
 #want to plot time series, where lines to be dotted and lined, and shade under the curve
 #shade under curve
@@ -81,24 +81,18 @@ par(mfrow=c(1,3))
 plot(A[,1], A[,2], col=factor(groups), pch=19, xlab="V1", ylab="V2")
 plot(A[,1], A[,3], col=factor(groups), pch=19, xlab="V1", ylab="V3")
 plot(A[,2], A[,3], col=factor(groups), pch=19, xlab="V2", ylab="V3")
-uA <- umap(A)
-par(mfrow=c(1,1))
-plot(uA$layout[,1], uA$layout[,2], pch=19, xlab="UMAP1", ylab="UMAP2", col=factor(groups))
-#load("df_samples.RData")
-par(mfrow=c(1,1))
-G0 <- read.table(paste0("G0_C", c, "_D", d, "_K", k, ".csv"), sep = ",")
-umapG <- umap(G0)
-names <- dimnames(X)[[1]]
-s_names <- substr(names, 1, 18)
-plot(umapG$layout[,1], umapG$layout[,2], pch=19, xlab="UMAP1", ylab="UMAP2", col=factor(s_names))
 
-meta_data <- read.table("20200619_farmm_metadata.tsv", sep = "\t", header = TRUE)
+par(mfrow=c(1,1))
+G0 <- read.table(paste0("G0_C", c, "_D", d, "_K", k, "_123.csv"), sep = ",")
+
+
+#meta_data <- read.table("20200619_farmm_metadata.tsv", sep = "\t", header = TRUE)
 
 #unique names, up to first 10 characters
 c <- 15
 
-core_values <- read.table(paste0("core0_C", c, "_D", d, "_K", k, ".csv"), sep = ",")
-indices_QM <- read.table(paste0("indices0_C", c, "_D", d, "_K", k, ".csv"), sep = ",")
+core_values <- read.table(paste0("core0_C", c, "_D", d, "_K", k, "_123.csv"), sep = ",")
+indices_QM <- read.table(paste0("indices0_C", c, "_D", d, "_K", k, "_123.csv"), sep = ",")
 core <- array(0, c(c,d,k))
 for (i in 1:(dim(indices_QM)[1])){
   core[indices_QM[i,1], indices_QM[i,2], indices_QM[i,3]] <- core_values$V1[i]
@@ -106,19 +100,20 @@ for (i in 1:(dim(indices_QM)[1])){
 
 #time slices
 par(mfrow=c(1,k))
-for (i in 1:k){
-  image(core[,,i], xlab="gene", ylab="subject", main=paste("Time PC", i))
+indices <- c(1,2,3)
+for (i in indices){
+  image(core[,,i], xlab="gene", ylab="subject", main=paste("Time PC", i), zlim=c(0.0000001, max(core)))
 }
 #subject slices
 par(mfrow=c(1,d))
 for (i in 1:d){
-  image(core[,i,], xlab="gene", ylab="time", main=paste("Subject PC", i))
+  image(core[,i,indices], xlab="gene", ylab="time", main=paste("Subject PC", i), zlim=c(0.0000001, max(core)))
 }
 
 #gene slices
 par(mfrow=c(3,c/3))
 for (i in 1:c){
-  image(core[i,,], xlab="", ylab="", main="", xaxt='n', yaxt='n')#, xlim = c(0,1), ylim = c(0,1))
+  image(core[i,,indices], xlab="", ylab="", main="", xaxt='n', yaxt='n', zlim=c(0.0000001, max(core)))#, xlim = c(0,1), ylim = c(0,1))
   #want no tick marks or axis numbering
   #axis(1, at = c(0,1), labels = FALSE)
   #axis(2, at = c(0,1), labels = FALSE)
@@ -135,5 +130,16 @@ image(apply(core, c(2,3), sum), xlab="subject", ylab="time", main="Time by Subje
 #image(as.matrix(l2))
 #image(as.matrix(l3))
 
-plot(mean_prs, type='l')
+#plot(mean_prs, type='l')
+
+
+for (i in 1:3){
+  A[,i] <- A[,i]/max(A[,i])
+}
+
+#sort rows of A by group
+A <- A[order(groups),]
+#blue_to_red <- colorRampPalette(c("blue", "white", "red"))
+image(t(A), xlab="latent factor", ylab="subject", zlim=c(0, 1))#, col=blue_to_red(256))
+
 

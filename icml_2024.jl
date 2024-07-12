@@ -17,7 +17,7 @@ b0 = 1
 a0_core = 1
 b0_core = 1
 
-C = 12#parse(Int, ARGS[2])
+C = 15#parse(Int, ARGS[2])
 D = 3
 K = 3
 R = 3
@@ -28,7 +28,7 @@ alpha_core = 1
 
 
 
-data = load("/Users/johnhood/Research/Schein/Allocation/FARMM/Y.jld")["Y"]
+data = load("/Users/johnhood/Research/Schein/HCPCCL/FARMM/Y.jld")["Y"]
 Y = data[:,:,2:16]
 #Y = load("DIABIMMUNE/Y.jld")["Y"]
 #data = reshape(data, (size(data)..., 1))
@@ -68,7 +68,7 @@ if (length(obs_dims) > 3)
     epsilon_T = ones(obs_dims[4]).*0.0
 end
 
-num = 1#parse(Int, ARGS[3])
+num = 0#parse(Int, ARGS[3])
 heldouts = [0, 0.1, 0.21, 0.32, 0.43]
 heldout_proportion = heldouts[num + 1]
 
@@ -97,13 +97,11 @@ nonzero_counts = Y_train[nonzero_indices]
 #nonzero_counts = Y[nonzero_indices]
 
 
-p_core = 0.99#init_p(1, alpha_core, beta_core)
+p_core = 0.9#init_p(1, alpha_core, beta_core)
 alpha = 1
 beta = 1
 
 M = length(size(Y))
-num_latent_factors = 2
-p_l = 0.5 #very sparse latent cp factorization, geometric prior
 constant_core = 1#/p_core
 constant_f = [10 .*ones(latent_dims[m]) for m in 1:M]
 p_m = [init_p(latent_dims[m], alpha, beta) for m in 1:M]
@@ -113,20 +111,14 @@ factor_matrices_M = Array{Matrix{Float64}}(undef, M)
 for m in 1:M
     factor_matrices_M[m] = init_factor(obs_dims[m], latent_dims[m], constant_f[m], p_m[m], true)
 end
-fm_l = Array{Matrix{Float64}}(undef, M)
-for m in 1:M
-    fm_l[m] = zeros(latent_dims[m], num_latent_factors)
-end
+
 
 l_indices = Int.(indices_QM)
-l_dims = latent_dims
-l_counts = ones(Int, size(l_indices, 1))
 burn_in = 500
-l_indices, l_counts, fm_l = update_l_indices(l_indices, l_counts, fm_l, l_dims, Int.(indices_QM), p_core, p_l, -burn_in, true)
 y_M = init_allocate(obs_dims, Q)
 
 
-#println("allocating")
+
 b_llks = zeros(length(test_indices))
 b_rates = copy(b_llks)
 n_iter = 1000
@@ -135,16 +127,22 @@ test = true
 
 for i in -burn_in:n_iter
     start = time()
+    if (mod(i, 20) == 0)  && i < 0 && i > -burn_in + 100 #thresholding during burn-in
+        println("thresholding")
+        println(sum(lambdas_Q .< 0.003))
+        println("")
+        global y_Q = y_Q[findall(lambdas_Q .> 0.003)]
+        global indices_QM = indices_QM[findall(lambdas_Q .> 0.003), :]
+        global lambdas_Q = lambdas_Q[lambdas_Q .> 0.003]
+    end
     if (mod(i, 5)==0)
     nzi = copy(nonzero_indices)
     nzc = copy(nonzero_counts)
     y_m = copy(y_M)
-        y_m, y_q, indices_qm, lq, _, y_indices, _ = allocate(nzi, nzc, factor_matrices_M, lambdas_Q, indices_QM, y_m, epsilon, i, epsilon_M)
+        y_m, y_q, indices_qm, lq, y_indices = allocate(nzi, nzc, factor_matrices_M, lambdas_Q, indices_QM, y_m, i)
         global y_MQ, y_Q, indices_QM, lambdas_Q = y_m, y_q, indices_qm, lq
     end 
-
         y_core_adj, scalar, y_indices, y_aux = adjust_Ycore(y_Q, indices_QM, lambdas_Q, factor_matrices_M, m_Q, gamma, constant_core)
-        global l_indices, l_counts, fm_l = update_l_indices(l_indices, l_counts, fm_l, l_dims, y_indices, p_core, p_l, i, false)
         @assert length(y_Q) == size(indices_QM, 1)
         global lambdas_Q, indices_QM, y_Q, y_MQ, y_indices = update_core(y_core_adj, indices_QM, p_core, constant_core, scalar, y_Q, y_MQ, l_indices, i)
         Q_loc = length(lambdas_Q)
@@ -154,29 +152,25 @@ for i in -burn_in:n_iter
                 matrix[:, indices_QM[q,m]] .+= y_MQ[m][:,q]
             end
             global y_M[m] = matrix
-        end 
+            end 
         if (i > -burn_in)
             for m in 1:M 
                 global factor_matrices_M[m], p_m[m], constant_f[m] = update_factor(factor_matrices_M, y_M[m], p_m[m], lambdas_Q, indices_QM, constant_f[m], m, 1)
             end
-        else
         end
     if (mod(i, 20) == 0) && test == true && i > -burn_in + 100
-        #println("number of core elements with allocated counts: $(size(y_indices, 1))")
+        println("number of core elements with allocated counts: $(size(y_indices, 1))")
         global test_counts, likelihood, i_rate = impute(Y, factor_matrices_M, test_indices, lambdas_Q, indices_QM, true_counts, 0, epsilon, 1, false)
-        if (i > 0)
-        global b_rates .+= i_rate
-        mae = mean(abs.(b_rates./((i)/20) .- true_counts))
-        #println(mae)
-        global b_llks .+= likelihood
-        avg_likelihood = b_llks./((i)/20)
-        avg_likelihood[avg_likelihood.==0] .= 1e-5
-        avg_likelihood[isnan.(avg_likelihood)].=1e-5
-        heldout_ppd = exp(mean(log.(avg_likelihood)))
-        nonzero_heldout_ppd = exp(mean(log.(avg_likelihood)[findall(!iszero, true_counts)]))
-        #println("heldout PPD: $heldout_ppd")
-        #println("nonzero heldout PPD: $nonzero_heldout_ppd")
-        end
+        #if (i > 0)
+        #global b_rates .+= i_rate
+        #mae = mean(abs.(b_rates./((i)/20) .- true_counts))
+        #global b_llks .+= likelihood
+        #avg_likelihood = b_llks./((i)/20)
+        #avg_likelihood[avg_likelihood.==0] .= 1e-5
+        #avg_likelihood[isnan.(avg_likelihood)].=1e-5
+        #heldout_ppd = exp(mean(log.(avg_likelihood)))
+        #nonzero_heldout_ppd = exp(mean(log.(avg_likelihood)[findall(!iszero, true_counts)]))
+        #end
         global diag_counts, _, _ = impute(Y, factor_matrices_M, diag_indices, lambdas_Q, indices_QM, diag_counts, 0, epsilon, 1, false)
         global nonzero_test_indices = findall(!iszero, test_counts)
         global nonzero_test_counts = test_counts[nonzero_test_indices]
@@ -190,18 +184,15 @@ for i in -burn_in:n_iter
         println("iteration $i took $(end_time - start) seconds")
         println("")
     end
-
-    end
-    #if (heldout_proportion == 0)
-        #writedlm("AllocaDA/FARMM/A$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[2], ",")
+end
+    
+    if (heldout_proportion == 0)
+        writedlm("results/thresholding/A$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[2], ",")
         #if (num == 0)
-        #writedlm("AllocaDA/FARMM/T$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[3], ",")
-        #writedlm("AllocaDA/FARMM/G$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[1], ",")
-        #writedlm("AllocaDA/FARMM/core$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", lambdas_Q, ",")
-        #writedlm("AllocaDA/FARMM/indices$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", indices_QM, ",")
+        writedlm("results/thresholding/T$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[3], ",")
+        writedlm("results/thresholding/G$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[1], ",")
+        writedlm("results/thresholding/core$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", lambdas_Q, ",")
+        writedlm("results/thresholding/indices$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", indices_QM, ",")
         #end
-        #writedlm("FARMM/l1.csv", fm_l[1], ",")
-        #writedlm("FARMM/l2.csv", fm_l[2], ",")
-        #writedlm("FARMM/l3.csv", fm_l[3], ",")
-    #end
+    end
     #save("priorseed$(seed)sample_4000$(heldout_proportion).jld", "lambdas_Q", lambdas_Q, "indices_QM", indices_QM, "factor_matrices_M", factor_matrices_M, "y_M", y_M, "y_Q", y_Q)

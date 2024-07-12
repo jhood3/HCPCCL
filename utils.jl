@@ -510,29 +510,23 @@ function init_allocate(obs_dims, Q) #initialize allocation matrices for allocati
     return (count_matrices)
 end
 
-function allocate(nonzero_indices, nonzero_counts, factor_matrices, lambdas_Q, indices_QM, y_M, epsilon, iter, epsilon_M) #allocate counts to latent classes
+function allocate(nonzero_indices, nonzero_counts, factor_matrices, lambdas_Q, indices_QM, y_M, iter) #allocate counts to latent classes
     M = length(factor_matrices)
-    indices = copy(indices_QM)
     ind_M = Array{Any}(undef, M)
     for m in 1:M
         ind_M[m] = findall(!iszero, dropdims(sum(factor_matrices[m], dims=1), dims=1))
     end
     Q = length(lambdas_Q)
-    lambdas_Q = vcat(lambdas_Q, zeros(M+1))
+    lambdas_Q = vcat(lambdas_Q)
     M = length(obs_dims)
-    y_Q = zeros(Q + 1 + M)
+    y_Q = zeros(Q)
     ordered_factor_matrices_M = Array{Matrix{Float64}}(undef, M)
     @views for m in 1:M
-        y_M[m] = spzeros(obs_dims[m], Q + 1 +M)
-        ordered_factor_matrices_M[m] = ones(obs_dims[m], Q + 1 +M)
-        ordered_factor_matrices_M[m][:, 1:Q] .= copy(factor_matrices[m][:, indices_QM[:,m]])
+        y_M[m] = spzeros(obs_dims[m], Q)
+        ordered_factor_matrices_M[m] = ones(obs_dims[m], Q)
+        ordered_factor_matrices_M[m] .= copy(factor_matrices[m][:, indices_QM[:,m]])
     end
 
-    y_epsilon = zeros(Int, obs_dims[1], obs_dims[2])
-    y_epsilon_M = Array{Any}(undef, M)
-    for m in 1:M
-        y_epsilon_M[m] = zeros(Int, obs_dims[m])
-    end
     nonzero_counts = copy(Int.(round.(nonzero_counts)))
     @assert length(nonzero_counts) == length(nonzero_indices)
     locker = Threads.SpinLock()
@@ -543,45 +537,42 @@ function allocate(nonzero_indices, nonzero_counts, factor_matrices, lambdas_Q, i
     nonzero_indices = hcat(nz_inds...)
     if (iter > -burn_in) 
     @views @threads for j in axes(nonzero_indices, 1)
-        @views counts = sample_count(nonzero_indices[j,:], copy(lambdas_Q), ordered_factor_matrices_M, nonzero_counts[j], epsilon[nonzero_indices[j,1], nonzero_indices[j,2]], epsilon_M)
+        @views counts = sample_count(nonzero_indices[j,:], copy(lambdas_Q), ordered_factor_matrices_M, nonzero_counts[j])
         lock(locker)
         @views for m in 1:M
-         y_epsilon_M[m][nonzero_indices[j,m]] += counts[end - m]
           y_M[m][nonzero_indices[j,m], :].+= counts
         end 
-        y_epsilon[nonzero_indices[j,2], nonzero_indices[j,3]] += counts[end]
         unlock(locker)
     end
 else
-    probs = ones(Q + 1 + M)/(Q + 1 + M)
+    probs = ones(Q)/Q
     @views @threads for j in axes(nonzero_indices, 1)
         @views counts = rand(Multinomial(nonzero_counts[j], probs))#sample_count(nonzero_indices[j,:], copy(lambdas_Q), ordered_factor_matrices_M, nonzero_counts[j])
         lock(locker)
         @views for m in 1:M
           @views y_M[m][nonzero_indices[j,m], :].+= counts
-          @views y_epsilon_M[m][nonzero_indices[j,m]] += counts[end - m]
         end 
         unlock(locker)
     end
 end
     y_Q = dropdims(sum(y_M[1], dims=1), dims=1)
     @assert round(sum(y_Q)) == round(sum(nonzero_counts))
-    y_Q = y_Q[1:(end-1 - M)]
-    lambdas_Q = lambdas_Q[1:(end-1 - M)]
     y_indices = indices_QM[findall(!iszero, y_Q),:]
     @assert length(lambdas_Q) == size(indices_QM, 1)
-    return (y_M, y_Q, indices_QM, lambdas_Q, y_epsilon, y_indices, y_epsilon_M)
+    return (y_M, y_Q, indices_QM, lambdas_Q, y_indices)
 end
 
-function sample_count(nz_ind, probs, om, nzc, eps, epsilon_M)
-    probs[end] = eps
+function sample_count(nz_ind, probs, om, nzc)
     @views for m in eachindex(om)
-                probs[end - m] = epsilon_M[m][nz_ind[m]]
                 theta = om[m]
                 ind = nz_ind[m]
                 @views(probs .*= theta[ind, :])
             end
+            if sum(probs) == 0
+                probs = ones(length(probs))/length(probs)
+            else
                 @views(normalize!(probs, 1))#./=sum(probs))
+            end
         return(rand(Multinomial(nzc, probs)))
 end
 
