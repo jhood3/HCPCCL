@@ -5,3 +5,5 @@ FARMM/*
 *.jld
 
 DIABIMMUNE/*
+
+*.RData
