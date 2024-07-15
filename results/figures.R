@@ -70,12 +70,12 @@ par(mfrow=c(1,1))
 #want to plot time series, where lines to be dotted and lined, and shade under the curve
 #shade under curve
 
-plot(T0[,1]/max(T0[,1]), col='red', type='l', lty=1, lwd=2, ylim=c(0,1), xlab="Time", ylab="Proportion of loading")
-points(T0[,1]/max(T0[,1]), col='red', pch=16)
-lines(T0[,2]/max(T0[,2]), col='blue', type='l', lty=1, lwd=2)
-points(T0[,2]/max(T0[,2]), col='blue', pch=16)
-lines(T0[,3]/max(T0[,3]), col='darkgreen', type='l', lty=1, lwd=2)
-points(T0[,3]/max(T0[,3]), col='darkgreen', pch=16)
+plot(2:16, T0[,1]/max(T0[,1]), col='red', type='l', lty=1, lwd=2, ylim=c(0,1), xlab="", ylab="", yaxt='n', xlim=c(2, 16))
+points(2:16,T0[,1]/max(T0[,1]), col='red', pch=16)
+lines(2:16,T0[,2]/max(T0[,2]), col='blue', type='l', lty=1, lwd=2)
+points(2:16,T0[,2]/max(T0[,2]), col='blue', pch=16)
+lines(2:16,T0[,3]/max(T0[,3]), col='darkgreen', type='l', lty=1, lwd=2)
+points(2:16,T0[,3]/max(T0[,3]), col='darkgreen', pch=16)
 
 par(mfrow=c(1,3))
 plot(A[,1], A[,2], col=factor(groups), pch=19, xlab="V1", ylab="V2")
@@ -93,10 +93,12 @@ c <- 15
 
 core_values <- read.table(paste0("core0_C", c, "_D", d, "_K", k, "_123.csv"), sep = ",")
 indices_QM <- read.table(paste0("indices0_C", c, "_D", d, "_K", k, "_123.csv"), sep = ",")
+
 core <- array(0, c(c,d,k))
 for (i in 1:(dim(indices_QM)[1])){
   core[indices_QM[i,1], indices_QM[i,2], indices_QM[i,3]] <- core_values$V1[i]
 }
+
 
 #time slices
 par(mfrow=c(1,k))
@@ -110,14 +112,22 @@ for (i in 1:d){
   image(core[,i,indices], xlab="gene", ylab="time", main=paste("Subject PC", i), zlim=c(0.0000001, max(core)))
 }
 
+
+
+white_to_black <- colorRampPalette(c("white", "red"))
 #gene slices
-par(mfrow=c(3,c/3))
-for (i in 1:c){
-  image(core[i,,indices], xlab="", ylab="", main="", xaxt='n', yaxt='n', zlim=c(0.0000001, max(core)))#, xlim = c(0,1), ylim = c(0,1))
+par(mfrow=c(3,c/3 - 1))
+inds = c(2,3,4,6,7,8,9,10,11,12,13,14)
+counter <- 1
+
+for (i in inds){
+  image(core[i,,indices], xlab="", ylab="", main="", xaxt='n', yaxt='n', zlim=c(0.0000001, max(core)), col=white_to_black(256))#, xlim = c(0,1), ylim = c(0,1))
+  #counter <- counter + 1
   #want no tick marks or axis numbering
   #axis(1, at = c(0,1), labels = FALSE)
   #axis(2, at = c(0,1), labels = FALSE)
-  }
+}
+
 
 #time by subject, summed over gene
 par(mfrow=c(1,1))
@@ -138,8 +148,9 @@ for (i in 1:3){
 }
 
 #sort rows of A by group
+labels <- order(groups)
 A <- A[order(groups),]
-#blue_to_red <- colorRampPalette(c("blue", "white", "red"))
-image(t(A), xlab="latent factor", ylab="subject", zlim=c(0, 1))#, col=blue_to_red(256))
+blue_to_red <- colorRampPalette(c("white", "blue"))
+image(t(A[,c(2,1,3)]), zlim=c(0, 1), col=blue_to_red(256), xaxt='n', yaxt='n')
 
 

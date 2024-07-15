@@ -581,8 +581,11 @@ function gen_mask(MCAR, p, obs_dims, mask_diag, missing_vals=false) #generate ma
     if MCAR == true
         heldout = rand(Binomial(1, p), obs_dims)
     else
-        partial_heldout = rand(Binomial(1, p), obs_dims[1:(M-1)]) #holdout p proportion of data: 1 = heldout
-        heldout = repeat(partial_heldout, outer=tuple(ones(Int, M-1)..., obs_dims[M]))
+        partial_heldout = rand(Binomial(1, p), obs_dims[2:M]) #holdout p proportion of data: 1 = heldout
+        println(size(partial_heldout))
+        partial_heldout = reshape(partial_heldout, (1, 30, 15))
+        heldout = repeat(partial_heldout, outer=tuple(obs_dims[1], ones(Int, M-1)...))
+        print(size(heldout))
         @assert size(heldout)==obs_dims
     end
 

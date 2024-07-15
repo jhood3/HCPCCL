@@ -4,8 +4,10 @@ load("df_samples.RData")
 #load("mat_otu_genus.RData")
 load("X_array.RData")
 subjects <- read.table("20200619_farmm_metadata.tsv", header=TRUE, sep="\t")
-#reduce to one line per SubjectID
 subjects <- subjects[!duplicated(subjects$SubjectID), ]
+groups <- subjects$study_group[1:30]
+#reduce to one line per SubjectID
+
 #Y <- read.table("table-matched.txt", header=TRUE)
 X <- X_array
 dim(X)
@@ -27,7 +29,7 @@ for (i in 1:(dim(X)[1])){
 }
   }
 }
-groups <- subjects$study_group[1:30]
+
 #save sparse_X as csv file
-write.csv(sparse_X, "sparse_XFARMM.csv", row.names=FALSE)
-write.csv(groups, "groups.csv", row.names=FALSE)
+#write.csv(sparse_X, "sparse_XFARMM.csv", row.names=FALSE)
+#write.csv(groups, "groups.csv", row.names=FALSE)

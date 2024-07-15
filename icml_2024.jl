@@ -9,7 +9,7 @@ using IterTools
 using DelimitedFiles
 
 include("utils.jl")
-seed = 123#parse(Int, ARGS[1])
+seed = parse(Int, ARGS[1])
 Random.seed!(seed)
 
 a0 = 1
@@ -17,7 +17,7 @@ b0 = 1
 a0_core = 1
 b0_core = 1
 
-C = 15#parse(Int, ARGS[2])
+C = 15
 D = 3
 K = 3
 R = 3
@@ -68,11 +68,11 @@ if (length(obs_dims) > 3)
     epsilon_T = ones(obs_dims[4]).*0.0
 end
 
-num = 0#parse(Int, ARGS[3])
-heldouts = [0, 0.1, 0.21, 0.32, 0.43]
+num = parse(Int, ARGS[2])
+heldouts = [0, 0.10, 0.2, 0.3, 0.4]
 heldout_proportion = heldouts[num + 1]
 
-heldout, mask = gen_mask(true, heldout_proportion, obs_dims, false, true)
+heldout, mask = gen_mask(false, heldout_proportion, obs_dims, false, true)
 println(mean(mask.==1))
 Y_train = Y.*abs.(mask.-1)
 Y_test = Y.*heldout
@@ -128,9 +128,9 @@ test = true
 for i in -burn_in:n_iter
     start = time()
     if (mod(i, 20) == 0)  && i < 0 && i > -burn_in + 100 #thresholding during burn-in
-        println("thresholding")
-        println(sum(lambdas_Q .< 0.003))
-        println("")
+        #println("thresholding")
+        #println(sum(lambdas_Q .< 0.003))
+        #println("")
         global y_Q = y_Q[findall(lambdas_Q .> 0.003)]
         global indices_QM = indices_QM[findall(lambdas_Q .> 0.003), :]
         global lambdas_Q = lambdas_Q[lambdas_Q .> 0.003]
@@ -159,7 +159,7 @@ for i in -burn_in:n_iter
             end
         end
     if (mod(i, 20) == 0) && test == true && i > -burn_in + 100
-        println("number of core elements with allocated counts: $(size(y_indices, 1))")
+        #println("number of core elements with allocated counts: $(size(y_indices, 1))")
         global test_counts, likelihood, i_rate = impute(Y, factor_matrices_M, test_indices, lambdas_Q, indices_QM, true_counts, 0, epsilon, 1, false)
         #if (i > 0)
         #global b_rates .+= i_rate
@@ -181,18 +181,18 @@ for i in -burn_in:n_iter
         global nonzero_indices = vcat(nonzero_train, nonzero_test_indices, nonzero_diag_indices)
         global nonzero_counts = vcat(nonzero_train_counts, nonzero_test_counts, nonzero_diag_counts)
         end_time = time()
-        println("iteration $i took $(end_time - start) seconds")
-        println("")
+        #println("iteration $i took $(end_time - start) seconds")
+        #println("")
     end
 end
     
-    if (heldout_proportion == 0)
+    #if (heldout_proportion == 0)
         writedlm("results/thresholding/A$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[2], ",")
-        #if (num == 0)
+        if (num == 0)
         writedlm("results/thresholding/T$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[3], ",")
         writedlm("results/thresholding/G$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", factor_matrices_M[1], ",")
         writedlm("results/thresholding/core$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", lambdas_Q, ",")
         writedlm("results/thresholding/indices$(num)_C$(C)_D$(D)_K$(K)_$seed.csv", indices_QM, ",")
-        #end
-    end
+        end
+    #end
     #save("priorseed$(seed)sample_4000$(heldout_proportion).jld", "lambdas_Q", lambdas_Q, "indices_QM", indices_QM, "factor_matrices_M", factor_matrices_M, "y_M", y_M, "y_Q", y_Q)
