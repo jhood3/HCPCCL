@@ -7,3 +7,5 @@ FARMM/*
 DIABIMMUNE/*
 
 *.RData
+
+*results/*
