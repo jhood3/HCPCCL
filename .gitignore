@@ -9,3 +9,5 @@ DIABIMMUNE/*
 *.RData
 
 results/*
+
+other/*
