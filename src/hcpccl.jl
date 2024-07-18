@@ -28,7 +28,7 @@ alpha_core = 1
 
 
 
-data = load("/Users/johnhood/Research/Schein/HCPCCL/FARMM/Y.jld")["Y"]
+data = load("data/FARMM/Y.jld")["Y"]
 Y = data[:,:,2:16]
 
 
@@ -62,8 +62,8 @@ end
 
 num = parse(Int, ARGS[2])
 
-#already 11 percent of data missing, so heldout proportion is approximately 10%, 20%, 30%, 40%, 50%  missing 
-heldouts = [0, 0.1, 0.2, 0.3, 0.4]
+ 
+heldouts = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 heldout_proportion = heldouts[num + 1]
 
 heldout, mask = gen_mask(false, heldout_proportion, obs_dims, false, true)
@@ -91,7 +91,7 @@ alpha = 1
 beta = 1
 
 M = length(size(Y))
-constant_core = 1#/p_core
+constant_core = 1
 constant_f = [10 .*ones(latent_dims[m]) for m in 1:M]
 p_m = [init_p(latent_dims[m], alpha, beta) for m in 1:M]
 lambdas_Q, indices_QM = init_core(latent_dims, Q, true)
