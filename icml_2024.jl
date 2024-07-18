@@ -30,15 +30,7 @@ alpha_core = 1
 
 data = load("/Users/johnhood/Research/Schein/HCPCCL/FARMM/Y.jld")["Y"]
 Y = data[:,:,2:16]
-#Y = load("DIABIMMUNE/Y.jld")["Y"]
-#data = reshape(data, (size(data)..., 1))
-#data = data["tensor"]#[:, :, :, 1:12]
-#last mode of tensor is binned by month, I want to bin by year
-#Y = dropdims(sum(data, dims=3), dims=3)
 
-println(sum(Y))
-println(mean(Y.==0))
-println(mean(Y.==-1))
 
 
 
@@ -69,7 +61,9 @@ if (length(obs_dims) > 3)
 end
 
 num = parse(Int, ARGS[2])
-heldouts = [0, 0.10, 0.2, 0.3, 0.4]
+
+#already 11 percent of data missing, so heldout proportion is approximately 10%, 20%, 30%, 40%, 50%  missing 
+heldouts = [0, 0.1, 0.2, 0.3, 0.4]
 heldout_proportion = heldouts[num + 1]
 
 heldout, mask = gen_mask(false, heldout_proportion, obs_dims, false, true)
@@ -84,20 +78,15 @@ nonzero_test_counts = Y_test[nonzero_test]
 nonzero_train = findall(!iszero, Y_train)
 nonzero_train_counts = Y_train[nonzero_train]
 
-#imputed_counts = rand(Poisson(mean(Y)), length(test_indices))
-#nonzero_imputed = findall(!iszero, imputed_counts)
-#imputed_nonzero_counts = imputed_counts[nonzero_imputed]
 true_counts = Y_test[test_indices]
 diag_counts = Y[diag_indices]
 imputed_diag_counts = rand(Poisson(mean(Y)), length(diag_indices))
 nonzero_indices = findall(!iszero, Y_train)
 nonzero_counts = Y_train[nonzero_indices]
 
-#nonzero_indices = findall(!iszero, Y)
-#nonzero_counts = Y[nonzero_indices]
 
 
-p_core = 0.9#init_p(1, alpha_core, beta_core)
+p_core = 0.9
 alpha = 1
 beta = 1
 
@@ -128,9 +117,6 @@ test = true
 for i in -burn_in:n_iter
     start = time()
     if (mod(i, 20) == 0)  && i < 0 && i > -burn_in + 100 #thresholding during burn-in
-        #println("thresholding")
-        #println(sum(lambdas_Q .< 0.003))
-        #println("")
         global y_Q = y_Q[findall(lambdas_Q .> 0.003)]
         global indices_QM = indices_QM[findall(lambdas_Q .> 0.003), :]
         global lambdas_Q = lambdas_Q[lambdas_Q .> 0.003]
@@ -159,18 +145,7 @@ for i in -burn_in:n_iter
             end
         end
     if (mod(i, 20) == 0) && test == true && i > -burn_in + 100
-        #println("number of core elements with allocated counts: $(size(y_indices, 1))")
         global test_counts, likelihood, i_rate = impute(Y, factor_matrices_M, test_indices, lambdas_Q, indices_QM, true_counts, 0, epsilon, 1, false)
-        #if (i > 0)
-        #global b_rates .+= i_rate
-        #mae = mean(abs.(b_rates./((i)/20) .- true_counts))
-        #global b_llks .+= likelihood
-        #avg_likelihood = b_llks./((i)/20)
-        #avg_likelihood[avg_likelihood.==0] .= 1e-5
-        #avg_likelihood[isnan.(avg_likelihood)].=1e-5
-        #heldout_ppd = exp(mean(log.(avg_likelihood)))
-        #nonzero_heldout_ppd = exp(mean(log.(avg_likelihood)[findall(!iszero, true_counts)]))
-        #end
         global diag_counts, _, _ = impute(Y, factor_matrices_M, diag_indices, lambdas_Q, indices_QM, diag_counts, 0, epsilon, 1, false)
         global nonzero_test_indices = findall(!iszero, test_counts)
         global nonzero_test_counts = test_counts[nonzero_test_indices]
@@ -181,8 +156,6 @@ for i in -burn_in:n_iter
         global nonzero_indices = vcat(nonzero_train, nonzero_test_indices, nonzero_diag_indices)
         global nonzero_counts = vcat(nonzero_train_counts, nonzero_test_counts, nonzero_diag_counts)
         end_time = time()
-        #println("iteration $i took $(end_time - start) seconds")
-        #println("")
     end
 end
     
